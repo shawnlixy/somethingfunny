@@ -1,0 +1,26 @@
+{
+  "name": "desktop-pet",
+  "private": true,
+  "version": "0.1.0",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && electron-builder",
+    "preview": "vite preview",
+    "generate:assets": "node scripts/generate-placeholders.js"
+  },
+  "dependencies": {
+    "electron-serve": "^3.0.1",
+    "electron-store": "^11.0.2",
+    "vue": "^3.4.0",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "electron": "^28.1.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.8",
+    "vite-plugin-electron": "^0.15.4",
+    "vite-plugin-electron-renderer": "^0.14.5"
+  }
+}
