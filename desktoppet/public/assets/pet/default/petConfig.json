@@ -1,0 +1,11 @@
+{
+  "name": "MyPet",
+  "defaultSize": 128,
+  "states": {
+    "idle": { "image": "idle.png", "duration": 0 },
+    "walk": { "image": "walk.png", "duration": 0 },
+    "click": { "image": "click.png", "duration": 1500, "next": "idle" },
+    "sleep": { "image": "sleep.png", "duration": 10000, "next": "idle" },
+    "follow": { "image": "follow.png", "duration": 0 }
+  }
+}
