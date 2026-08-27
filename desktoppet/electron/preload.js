@@ -7,8 +7,13 @@ const listeners = {
   'settings-changed': new Set(),
 }
 
-function subscribe(channel, callback) { listeners[channel]?.add(callback) }
-function invoke(channel, ...args) { return ipcRenderer.invoke(channel, ...args) }
+function subscribe(channel, callback) {
+  listeners[channel]?.add(callback)
+}
+
+function invoke(channel, ...args) {
+  return ipcRenderer.invoke(channel, ...args)
+}
 
 contextBridge.exposeInMainWorld('petAPI', {
   getPetConfig: () => invoke('get-pet-config'),
@@ -28,7 +33,18 @@ contextBridge.exposeInMainWorld('petAPI', {
   onSettingsChanged: (callback) => subscribe('settings-changed', callback),
 })
 
-ipcRenderer.on('check-mouse-position', (_e, p) => listeners['check-mouse-position'].forEach((cb) => cb(p)))
-ipcRenderer.on('update-focus', (_e, p) => listeners['update-focus'].forEach((cb) => cb(p)))
-ipcRenderer.on('asset-updated', (_e, p) => listeners['asset-updated'].forEach((cb) => cb(p)))
-ipcRenderer.on('settings-changed', (_e, p) => listeners['settings-changed'].forEach((cb) => cb(p)))
+ipcRenderer.on('check-mouse-position', (_event, payload) => {
+  listeners['check-mouse-position'].forEach((cb) => cb(payload))
+})
+
+ipcRenderer.on('update-focus', (_event, payload) => {
+  listeners['update-focus'].forEach((cb) => cb(payload))
+})
+
+ipcRenderer.on('asset-updated', (_event, payload) => {
+  listeners['asset-updated'].forEach((cb) => cb(payload))
+})
+
+ipcRenderer.on('settings-changed', (_event, payload) => {
+  listeners['settings-changed'].forEach((cb) => cb(payload))
+})

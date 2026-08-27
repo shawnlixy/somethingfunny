@@ -13,7 +13,16 @@ dist-electron
 release
 *.local
 
+# Editor folders and files
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# TypeScript
+*.tsbuildinfo
