@@ -27,25 +27,38 @@ const { currentState, setState, resetToIdle, dispose } = usePetStateMachine()
 
 const currentImageSrc = computed(() => images.value[currentState.value] || '')
 
-let mouseDown = false
-let dragging = false
+let isInteracting = false
 let prevShouldIgnoreMouse = true
+let lastAlphaCheckAt = 0
+let pointerDownAt = null
+let windowPosAtDown = null
+const ALPHA_CHECK_INTERVAL = 50
+const CLICK_MOVE_THRESHOLD = 8
 
 function getConfig() {
   return petConfig.value
 }
 
 function getWindowPosition() {
-  return window.__petWindowBounds || {
+  const bounds = window.__petWindowBounds || {
     x: 0,
     y: 0,
     width: 200,
     height: 200,
   }
+  return {
+    x: Number(bounds.x) || 0,
+    y: Number(bounds.y) || 0,
+    width: Number(bounds.width) || 200,
+    height: Number(bounds.height) || 200,
+  }
 }
 
 function moveWindow(x, y) {
-  window.petAPI.moveWindow(x, y)
+  const px = Math.round(Number(x))
+  const py = Math.round(Number(y))
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return
+  window.petAPI.moveWindow(px, py)
 }
 
 const behaviors = usePetBehaviors({
@@ -55,14 +68,23 @@ const behaviors = usePetBehaviors({
   moveWindow,
 })
 
-/** 鼠标穿透：透明区域让点击落到桌面 */
-async function checkMousePosition(data) {
-  const { x, y } = data
-  let shouldIgnoreMouse = true
+/** 鼠标穿透：透明区域让点击落到桌面（带节流与滞回，减少光标闪烁） */
+function checkMousePosition(data) {
+  if (isInteracting) return
 
+  const now = performance.now()
+  if (now - lastAlphaCheckAt < ALPHA_CHECK_INTERVAL) return
+  lastAlphaCheckAt = now
+
+  const { x, y } = data
   const alpha = petSpriteRef.value?.getAlphaAt(x, y) ?? 0
-  if (alpha > 10) {
-    shouldIgnoreMouse = false
+
+  // 滞回阈值：进入与离开不同，避免边缘反复切换穿透状态
+  let shouldIgnoreMouse = prevShouldIgnoreMouse
+  if (prevShouldIgnoreMouse) {
+    if (alpha > 24) shouldIgnoreMouse = false
+  } else if (alpha < 10) {
+    shouldIgnoreMouse = true
   }
 
   if (shouldIgnoreMouse !== prevShouldIgnoreMouse) {
@@ -71,26 +93,47 @@ async function checkMousePosition(data) {
   }
 }
 
-function handleMouseDown(event) {
-  mouseDown = true
-  dragging = false
-  window.petAPI.dragStart(event.screenX, event.screenY)
+function handlePointerDown(event) {
+  const alpha = petSpriteRef.value?.getAlphaAt(event.clientX, event.clientY) ?? 0
+  if (alpha <= 24) return
+
+  const sx = Number(event.screenX)
+  const sy = Number(event.screenY)
+  if (!Number.isFinite(sx) || !Number.isFinite(sy)) return
+
+  isInteracting = true
+  behaviors.setInteracting(true)
+  pointerDownAt = { x: sx, y: sy }
+  windowPosAtDown = getWindowPosition()
+  window.petAPI.dragStart(sx, sy)
 }
 
-function handleMouseUp() {
-  if (mouseDown && !dragging) {
+function handlePointerUp(event) {
+  if (!isInteracting && !pointerDownAt) return
+
+  const pos = getWindowPosition()
+  const hasPointerCoords = event?.screenX != null && event?.screenY != null
+  const pointerMoved = pointerDownAt && hasPointerCoords
+    ? Math.hypot(event.screenX - pointerDownAt.x, event.screenY - pointerDownAt.y)
+    : CLICK_MOVE_THRESHOLD
+  const windowMoved = windowPosAtDown
+    ? Math.abs(pos.x - windowPosAtDown.x) > 2 || Math.abs(pos.y - windowPosAtDown.y) > 2
+    : false
+
+  if (pointerDownAt && hasPointerCoords && !windowMoved && pointerMoved < CLICK_MOVE_THRESHOLD) {
     setState('click', getConfig())
   }
-  mouseDown = false
-  dragging = false
+
+  pointerDownAt = null
+  windowPosAtDown = null
+  isInteracting = false
+  behaviors.setInteracting(false)
+  lastAlphaCheckAt = 0
   window.petAPI.dragEnd()
 }
 
-function handleMouseMove(event) {
-  if (mouseDown) {
-    dragging = true
-    window.petAPI.dragMove(event.screenX, event.screenY)
-  }
+function handlePointerCancel(event) {
+  handlePointerUp(event)
 }
 
 function handleAlphaUpdated() {
@@ -135,19 +178,21 @@ onMounted(async () => {
   window.petAPI.onAssetUpdated(handleAssetUpdated)
   window.petAPI.onSettingsChanged(handleSettingsChanged)
 
-  document.addEventListener('mousedown', handleMouseDown)
-  document.addEventListener('mouseup', handleMouseUp)
-  document.addEventListener('mousemove', handleMouseMove)
-
   window.petAPI.setIgnoreMouseEvents(true)
+
+  window.addEventListener('pointerdown', handlePointerDown)
+  window.addEventListener('pointerup', handlePointerUp)
+  window.addEventListener('pointercancel', handlePointerCancel)
+  window.addEventListener('blur', handlePointerCancel)
 })
 
 onUnmounted(() => {
   behaviors.stop()
   dispose()
-  document.removeEventListener('mousedown', handleMouseDown)
-  document.removeEventListener('mouseup', handleMouseUp)
-  document.removeEventListener('mousemove', handleMouseMove)
+  window.removeEventListener('pointerdown', handlePointerDown)
+  window.removeEventListener('pointerup', handlePointerUp)
+  window.removeEventListener('pointercancel', handlePointerCancel)
+  window.removeEventListener('blur', handlePointerCancel)
 })
 </script>
 
@@ -159,5 +204,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  cursor: default;
 }
 </style>

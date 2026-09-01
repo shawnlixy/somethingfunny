@@ -15,6 +15,14 @@ function invoke(channel, ...args) {
   return ipcRenderer.invoke(channel, ...args)
 }
 
+/** 仅发送可结构化克隆的原始值，避免 IPC 转换失败 */
+function sendSafePosition(channel, x, y) {
+  const px = Math.round(Number(x))
+  const py = Math.round(Number(y))
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return
+  ipcRenderer.send(channel, px, py)
+}
+
 contextBridge.exposeInMainWorld('petAPI', {
   getPetConfig: () => invoke('get-pet-config'),
   getSettings: () => invoke('get-settings'),
@@ -22,11 +30,12 @@ contextBridge.exposeInMainWorld('petAPI', {
   getAllAssetPreviews: () => invoke('get-all-asset-previews'),
   pickAsset: (stateId) => invoke('pick-asset', stateId),
   resetAsset: (stateId) => invoke('reset-asset', stateId),
-  setIgnoreMouseEvents: (ignore) => ipcRenderer.send('set-ignore-mouse-events', ignore, { forward: true }),
-  dragStart: (x, y) => ipcRenderer.send('drag-start', x, y),
-  dragMove: (x, y) => ipcRenderer.send('drag-move', x, y),
+  // 只传 boolean，forward 选项在主进程内处理
+  setIgnoreMouseEvents: (ignore) => ipcRenderer.send('set-ignore-mouse-events', Boolean(ignore)),
+  dragStart: (x, y) => sendSafePosition('drag-start', x, y),
   dragEnd: () => ipcRenderer.send('drag-end'),
-  moveWindow: (x, y) => ipcRenderer.send('move-window', x, y),
+  saveWindowPosition: () => ipcRenderer.send('save-window-position'),
+  moveWindow: (x, y) => sendSafePosition('move-window', x, y),
   onCheckMousePosition: (callback) => subscribe('check-mouse-position', callback),
   onUpdateFocus: (callback) => subscribe('update-focus', callback),
   onAssetUpdated: (callback) => subscribe('asset-updated', callback),

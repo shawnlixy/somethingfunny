@@ -6,13 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && electron-builder",
+    "build:dir": "vite build && electron-builder --dir",
     "preview": "vite preview",
     "generate:assets": "node scripts/generate-placeholders.js",
-    "postinstall": "cd node_modules/.pnpm/electron@* && cd node_modules/electron && node install.js"
+    "install:electron": "node scripts/install-electron.js",
+    "postinstall": "node scripts/install-electron.js"
   },
   "dependencies": {
     "electron-serve": "^3.0.1",
-    "electron-store": "^11.0.2",
+    "electron-store": "^8.2.0",
     "vue": "^3.4.0",
     "vue-router": "^5.2.0"
   },
@@ -51,7 +53,8 @@
           ]
         }
       ],
-      "artifactName": "${productName}-Setup-${version}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "signAndEditExecutable": false
     },
     "nsis": {
       "oneClick": false,

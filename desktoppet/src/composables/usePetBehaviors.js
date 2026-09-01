@@ -13,6 +13,8 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
   let sleepTimer = null
   let walkMoveTimer = null
   let followRaf = null
+  let lastFollowMoveAt = 0
+  const interacting = ref(false)
 
   const options = { ...DEFAULT_BEHAVIOR_OPTIONS }
 
@@ -54,10 +56,10 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
   /** 安排下一次随机漫步 */
   function scheduleWalk() {
     clearWalkTimers()
-    if (paused.value || locked.value) return
+    if (paused.value || locked.value || interacting.value) return
 
     walkTimer = setTimeout(() => {
-      if (paused.value || locked.value) return
+      if (paused.value || locked.value || interacting.value) return
       setState('walk', getConfig())
 
       const pos = getWindowPosition()
@@ -69,6 +71,7 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
       }
 
       walkMoveTimer = setInterval(() => {
+        if (interacting.value) return
         const current = getWindowPosition()
         let nextX = current.x + walkDirection.value * options.walkSpeed
 
@@ -80,7 +83,7 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
         }
 
         moveWindow(nextX, current.y)
-      }, 16)
+      }, 33)
 
       setTimeout(() => {
         clearWalkTimers()
@@ -109,6 +112,8 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
     const tick = () => {
       followRaf = requestAnimationFrame(tick)
 
+      if (interacting.value) return
+
       const cursor = window.__lastCursor
       if (!cursor) return
 
@@ -121,6 +126,11 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
 
       if (distance < options.followDistance && distance > 20) {
         setState('follow', getConfig())
+
+        const now = performance.now()
+        if (now - lastFollowMoveAt < 33) return
+        lastFollowMoveAt = now
+
         const ratio = options.followSpeed / distance
         moveWindow(
           Math.round(pos.x + dx * ratio * 0.05),
@@ -134,6 +144,13 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
 
   function updateCursor(cursor) {
     window.__lastCursor = cursor
+  }
+
+  function setInteracting(value) {
+    interacting.value = value
+    if (value) {
+      clearWalkTimers()
+    }
   }
 
   function setPaused(value) {
@@ -170,6 +187,7 @@ export function usePetBehaviors({ setState, getConfig, getWindowPosition, moveWi
     locked,
     setPaused,
     setLocked,
+    setInteracting,
     updateCursor,
     start,
     stop,

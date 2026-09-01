@@ -1,14 +1,16 @@
 <template>
-  <canvas
-    ref="canvasRef"
-    class="pet-canvas"
-    :width="canvasSize"
-    :height="canvasSize"
-  />
+  <div class="pet-sprite-host" :style="hostStyle">
+    <canvas
+      ref="canvasRef"
+      class="pet-canvas"
+      :width="canvasSize"
+      :height="canvasSize"
+    />
+  </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps({
   imageSrc: {
@@ -26,6 +28,28 @@ const emit = defineEmits(['alpha-updated'])
 const canvasRef = ref(null)
 const canvasSize = ref(200)
 const loadedImage = ref(null)
+// 预缓存 alpha 通道，避免每次 getImageData 造成卡顿
+let alphaBytes = null
+let alphaWidth = 0
+let alphaHeight = 0
+
+const hostStyle = computed(() => ({
+  width: `${canvasSize.value}px`,
+  height: `${canvasSize.value}px`,
+}))
+
+/** 绘制后重建 alpha 缓存 */
+function rebuildAlphaCache() {
+  const canvas = canvasRef.value
+  if (!canvas) return
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  const { width, height } = canvas
+  const imageData = ctx.getImageData(0, 0, width, height)
+  alphaBytes = imageData.data
+  alphaWidth = width
+  alphaHeight = height
+}
 
 /** 绘制当前图片到 canvas */
 function drawImage() {
@@ -40,6 +64,7 @@ function drawImage() {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   const offset = (canvasSize.value - displaySize) / 2
   ctx.drawImage(image, offset, offset, displaySize, displaySize)
+  rebuildAlphaCache()
   emit('alpha-updated')
 }
 
@@ -73,22 +98,20 @@ watch(
   }
 )
 
-/** 供父组件做 alpha 穿透检测 */
+/** 供父组件做 alpha 穿透检测（读缓存，O(1)） */
 function getAlphaAt(x, y) {
   const canvas = canvasRef.value
-  if (!canvas) return 0
+  if (!canvas || !alphaBytes) return 0
 
   const rect = canvas.getBoundingClientRect()
   const canvasX = Math.floor(x - rect.left)
   const canvasY = Math.floor(y - rect.top)
 
-  if (canvasX < 0 || canvasY < 0 || canvasX >= canvas.width || canvasY >= canvas.height) {
+  if (canvasX < 0 || canvasY < 0 || canvasX >= alphaWidth || canvasY >= alphaHeight) {
     return 0
   }
 
-  const ctx = canvas.getContext('2d')
-  const pixel = ctx.getImageData(canvasX, canvasY, 1, 1).data
-  return pixel[3]
+  return alphaBytes[(canvasY * alphaWidth + canvasX) * 4 + 3]
 }
 
 defineExpose({
@@ -104,12 +127,20 @@ onMounted(() => {
 
 onUnmounted(() => {
   loadedImage.value = null
+  alphaBytes = null
 })
 </script>
 
 <style scoped>
+.pet-sprite-host {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .pet-canvas {
   display: block;
-  margin: 0 auto;
+  width: 100%;
+  height: 100%;
+  cursor: default;
 }
 </style>
