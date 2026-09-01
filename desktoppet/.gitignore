@@ -23,6 +23,9 @@ release
 *.njsproj
 *.sln
 *.sw?
+启动桌宠-打包版.bat
+启动桌宠.bat
+
 
 # TypeScript
 *.tsbuildinfo
